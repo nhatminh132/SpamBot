@@ -2,12 +2,12 @@
 import os
 import asyncio
 import logging
+import threading
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 from flask import Flask, jsonify
-import threading
 
 # --- cấu hình logging ---
 logging.basicConfig(level=logging.INFO)
@@ -20,9 +20,10 @@ if not TOKEN:
     exit(1)
 
 intents = discord.Intents.default()
-intents.message_content = True  # nếu bạn muốn đọc nội dung, nếu cần
+intents.message_content = True  # nếu bạn muốn đọc nội dung tin nhắn
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# --- Cog chứa lệnh slash ---
 class RemindCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -48,16 +49,21 @@ class RemindCog(commands.Cog):
         except Exception as e:
             logger.exception("Failed to send reminder message")
 
+# --- Sự kiện on_ready để sync lệnh slash nhanh ---
 @bot.event
 async def on_ready():
     logger.info(f"Bot đã sẵn sàng – đăng nhập như {bot.user} (ID {bot.user.id})")
     try:
-        # Sync các lệnh slash (toàn cầu hoặc chỉ guild test)
-        await bot.tree.sync()
-        logger.info("Synced slash commands.")
+        TEST_GUILD_ID = 123456789012345678  # ← **Thay bằng ID server của bạn**
+        guild = discord.Object(id=TEST_GUILD_ID)
+        # Copy global commands to this guild (giúp test nhanh)
+        bot.tree.copy_global_to(guild=guild)
+        await bot.tree.sync(guild=guild)
+        logger.info(f"Synced slash commands to guild {TEST_GUILD_ID}.")
     except Exception as e:
         logger.exception("Error syncing commands")
 
+# --- Hàm chính để khởi chạy bot ---
 async def main_bot():
     await bot.start(TOKEN)
 
@@ -69,7 +75,6 @@ def healthz():
     return jsonify({"status": "ok"}), 200
 
 def run_flask():
-    # Lấy PORT từ biến môi trường (Render thường cung cấp)
     port = int(os.environ.get("PORT", 5000))
     host = "0.0.0.0"
     logger.info(f"Starting Flask server at http://{host}:{port}/healthz")
@@ -77,14 +82,11 @@ def run_flask():
 
 # --- Kết hợp cả 2: chạy bot + flask song song ---
 if __name__ == "__main__":
-    # Đăng cog
     bot.add_cog(RemindCog(bot))
 
-    # Chạy flask trong thread riêng
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
 
-    # Chạy bot chính
     try:
         asyncio.run(main_bot())
     except KeyboardInterrupt:
