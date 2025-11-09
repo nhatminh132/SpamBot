@@ -19,31 +19,36 @@ if not TOKEN:
     exit(1)
 
 intents = discord.Intents.default()
-intents.message_content = True  # vì chúng ta sẽ xử lý lệnh dựa trên nội dung tin nhắn
+intents.message_content = True  # cần để bot đọc nội dung tin nhắn
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- Định nghĩa lệnh prefix ---
-@bot.command(name="remind", help="Đặt nhắc sau [time] giây tới @user")
-async def remind(ctx: commands.Context, time: int, user: discord.User):
+# --- Định nghĩa lệnh prefix với số lần lặp ---
+@bot.command(name="remind", help="Đặt nhắc sau [time] giây tới @user, lặp [count] lần")
+async def remind(ctx: commands.Context, time: int, user: discord.User, count: int = 1):
     if time < 1:
         await ctx.send("❌ Thời gian phải lớn hơn 0 giây.")
         return
+    if count < 1:
+        await ctx.send("❌ Số lần phải lớn hơn hoặc bằng 1.")
+        return
 
-    await ctx.send(f"✅ Nhắc {user.mention} sau {time} giây.")
-    logger.info(f"Scheduling reminder: user={user} in {time}s requested by {ctx.author}")
+    await ctx.send(f"✅ Nhắc {user.mention} mỗi {time} giây, tổng {count} lần.")
+    logger.info(f"Scheduling {count} reminders for {user} every {time}s requested by {ctx.author}")
 
-    await asyncio.sleep(time)
-
-    try:
-        await ctx.send(f"{user.mention} ⏰ Đây là lời nhắc của bạn!")
-        logger.info(f"Sent reminder to {user}")
-    except Exception as e:
-        logger.exception("Failed to send reminder message")
+    for i in range(count):
+        await asyncio.sleep(time)
+        try:
+            await ctx.send(f"{user.mention} ⏰ (#{i+1}/{count}) Đây là lời nhắc của bạn!")
+            logger.info(f"Sent reminder #{i+1} to {user}")
+        except Exception as e:
+            logger.exception("Failed to send reminder message")
+            break
 
 # --- Sự kiện on_ready ---
 @bot.event
 async def on_ready():
     logger.info(f"Bot đã sẵn sàng – đăng nhập như {bot.user} (ID {bot.user.id})")
+    # bạn có thể thêm thông báo khác tại đây
 
 # --- Hàm chính để khởi chạy bot ---
 async def main_bot():
