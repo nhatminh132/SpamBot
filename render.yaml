@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: discord‑bot‑service
+    env: python
+    region: singapore # hoặc region gần bạn
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    healthCheckPath: /healthz
+    envVars:
+      - key: DISCORD_BOT_TOKEN
+        fromSecret: DISCORD_BOT_TOKEN
+      - key: PORT
+        value: "5000"
